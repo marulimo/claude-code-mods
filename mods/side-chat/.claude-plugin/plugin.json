@@ -57,6 +57,12 @@
       "title": "外部送信しないフォルダー",
       "default": "",
       "description": "カンマ区切りで指定します。フォルダーは絶対パスです"
+    },
+    "privateWords": {
+      "type": "string",
+      "title": "外部送信しない語句",
+      "default": "",
+      "description": "カンマ区切りで指定します。この語句を含む発言は雑談の材料に渡しません"
     }
   },
   "author": {

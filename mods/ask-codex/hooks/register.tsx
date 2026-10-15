@@ -20,30 +20,94 @@ const CHAT_GUARD =
 
 const LABEL: Record<Mode, string> = { devin: 'Devin', codex: 'Codex' }
 
+type Sandbox = 'workspace-write' | 'danger-full-access'
+
 type Config = {
   codexPath: string
   model: string
+  codexSandbox: Sandbox
   devinPath: string
   devinDir: string
   effort: Record<Mode, string>
 }
 
+type Paths = { codex: string; devin: string; devinDir: string; errorLog: string }
+
 // 実行中の子プロセス。止めるボタンが return() で殺す
 const live = new Map<string, AsyncGenerator<unknown, unknown>>()
+let resolved: Paths | undefined
 
-// Devin は信頼済みの相談用フォルダーで動かす。auto は読み取り系ツールだけ自動で通す
-function devinArgv(cfg: Config, run: Run): string[] {
+async function exists($: EngineInterface, path: string) {
+  try {
+    await $.fs.stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Windows の npm は codex.cmd を置くが、シェルなしでは起動できない。隣の node_modules から本体の exe を探す
+async function findCodexOnWindows($: EngineInterface): Promise<string | undefined> {
+  try {
+    const { stdout } = await $.process.run(['where.exe', 'codex'])
+    for (const line of stdout.split(/\r?\n/).map(s => s.trim()).filter(Boolean)) {
+      if (/\.exe$/i.test(line)) return line
+      const dir = line.replace(/[\\/][^\\/]+$/, '')
+      for (const [pkg, triple] of [
+        ['codex-win32-x64', 'x86_64-pc-windows-msvc'],
+        ['codex-win32-arm64', 'aarch64-pc-windows-msvc'],
+      ] as const) {
+        const exe = `${dir}/node_modules/@openai/codex/node_modules/@openai/${pkg}/vendor/${triple}/bin/codex.exe`
+        if (await exists($, exe)) return exe
+      }
+    }
+  } catch {
+    // where.exe が無い、または codex が PATH に無い
+  }
+  return undefined
+}
+
+async function resolvePaths($: EngineInterface, cfg: Config): Promise<Paths> {
+  if (resolved) return resolved
+  const windows = (await $.env.get('OS')) === 'Windows_NT'
+  const home = (windows ? await $.env.get('USERPROFILE') : await $.env.get('HOME')) ?? '.'
+  const base = `${home}/.ask-codex`
+
+  const codex = cfg.codexPath || (windows ? ((await findCodexOnWindows($)) ?? 'codex') : 'codex')
+
+  let devin = cfg.devinPath || 'devin'
+  if (!cfg.devinPath && windows) {
+    const local = await $.env.get('LOCALAPPDATA')
+    const exe = local ? `${local}/devin/cli/bin/devin.exe` : ''
+    if (exe && (await exists($, exe))) devin = exe
+  }
+
+  // Devin は中身の空な専用フォルダーで動かす
+  const devinDir = cfg.devinDir || `${base}/devin-chat`
+  await $.fs.write(`${devinDir}/.keep`, '').catch(() => undefined)
+
+  resolved = { codex, devin, devinDir, errorLog: `${base}/errors.log` }
+  return resolved
+}
+
+// 信頼確認はその1回だけ省き、auto は読み取り系ツールだけ通す
+function devinArgv(paths: Paths, run: Run): string[] {
   return [
-    cfg.devinPath, '--model', `swe-2-${run.effort}`, '--permission-mode', 'auto',
-    '-p', CHAT_GUARD + run.prompt,
+    paths.devin, '--model', `swe-2-${run.effort}`, '--permission-mode', 'auto',
+    '--respect-workspace-trust', 'false', '-p', CHAT_GUARD + run.prompt,
   ]
 }
 
-function codexArgv(cfg: Config, run: Run, cwd: string): string[] {
+function codexArgv(cfg: Config, paths: Paths, run: Run, cwd: string): string[] {
+  const access =
+    cfg.codexSandbox === 'danger-full-access'
+      ? ['--dangerously-bypass-approvals-and-sandbox']
+      : ['-s', 'workspace-write', '-c', 'approval_policy="never"']
   return [
-    cfg.codexPath, 'exec', '--skip-git-repo-check', '-C', cwd,
-    '-c', `model="${cfg.model}"`, '-c', `model_reasoning_effort=${run.effort}`,
-    '--dangerously-bypass-approvals-and-sandbox', '-',
+    paths.codex, 'exec', '--skip-git-repo-check', '-C', cwd,
+    ...(cfg.model ? ['-c', `model="${cfg.model}"`] : []),
+    '-c', `model_reasoning_effort=${run.effort}`,
+    ...access, '-',
   ]
 }
 
@@ -56,10 +120,11 @@ async function watch($: EngineInterface, cfg: Config, run: Run, cwd: string) {
   let stderrTail = ''
   let code: number | null = null
   try {
+    const paths = await resolvePaths($, cfg)
     const child = $.process.spawn(
       run.mode === 'devin'
-        ? { argv: devinArgv(cfg, run), cwd: cfg.devinDir || `${(await $.env.get('USERPROFILE')) || (await $.env.get('HOME')) || ''}/devin-ask` }
-        : { argv: codexArgv(cfg, run, cwd), input: run.prompt },
+        ? { argv: devinArgv(paths, run), cwd: paths.devinDir }
+        : { argv: codexArgv(cfg, paths, run, cwd), input: run.prompt },
     )
     live.set(run.id, child)
     while (true) {
@@ -158,15 +223,15 @@ function removeRun($: EngineInterface, id: string) {
   return update($, runs, l => l.filter(x => x.id !== id))
 }
 
-async function noteError($: EngineInterface, step: string, err: unknown) {
-  const dir = (await $.env.get('TEMP')) || (await $.env.get('TMPDIR'))
-  if (!dir) return
-  const path = `${dir.replace(/[\\/]$/, '')}/ask-codex-errors.log`
+// 失敗の理由を ~/.ask-codex/errors.log に残す。置き場所が決まる前の失敗は残さない
+function noteError($: EngineInterface, step: string, err: unknown) {
+  const log = resolved?.errorLog
+  if (!log) return
   const line = `${new Date().toISOString()} ${step}: ${String(err)}\n`
   void $.fs
-    .read(path)
+    .read(log)
     .catch(() => '')
-    .then(prev => $.fs.write(path, String(prev).slice(-8000) + line))
+    .then(prev => $.fs.write(log, String(prev).slice(-8000) + line))
     .catch(() => undefined)
 }
 
@@ -182,7 +247,7 @@ async function registerCommands($: EngineInterface) {
 
 const CODEX_COMMAND = {
   name: 'codex',
-  description: 'Codex(Sol)に作業を投げる。全権限で今の作業フォルダーを触る',
+  description: 'Codex に作業を頼む。今の作業フォルダーで動く',
   argumentHint: '<プロンプト>',
 }
 const DEVIN_COMMAND = {
@@ -195,18 +260,24 @@ const PANEL_COMMAND = { name: 'codex-panel', description: 'Devin / Codex のパ�
 
 export const register: Register = (on, options) => {
   const cfg: Config = {
-    codexPath: String(options.codexPath),
-    model: String(options.model),
-    devinPath: String(options.devinPath),
-    devinDir: String(options.devinDir),
+    codexPath: String(options.codexPath ?? ''),
+    model: String(options.model ?? ''),
+    codexSandbox: options.codexSandbox === 'danger-full-access' ? 'danger-full-access' : 'workspace-write',
+    devinPath: String(options.devinPath ?? ''),
+    devinDir: String(options.devinDir ?? ''),
     effort: {
       codex: String(options.codexEffort),
       devin: String(options.devinEffort),
     },
   }
+  const codexNote =
+    cfg.codexSandbox === 'danger-full-access'
+      ? 'Codex は今の作業フォルダーを確認なしで全権限で書き換えます'
+      : 'Codex は今の作業フォルダーの中だけ書き換えます'
 
   on('session.start', async ($, e, next) => {
     // 1つ失敗しても残りとセッション開始は続ける。理由はファイルに残す
+    await resolvePaths($, cfg).catch(() => undefined)
     await registerCommands($)
     const started = await next(e)
     // 起動時に開いておく。ドックできる画面では右のサイドバーになる
@@ -236,7 +307,6 @@ export const register: Register = (on, options) => {
     const ui = $.ui.resolve(e) as any
     const { Box, Text, Button, Input, Select, Markdown } = ui
     const list = await read($, runs)
-    // 前の版で選んだ送り先が残っていても Devin に寄せる
     const stored = await read($, mode)
     const current: Mode = stored in LABEL ? stored : 'devin'
     const effort = (await read($, efforts))[current] ?? cfg.effort[current]
@@ -247,20 +317,23 @@ export const register: Register = (on, options) => {
     return (
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
-          {Select ? (
-            <Select
-              key="mode"
-              label="送り先"
-              value={current}
-              options={[
-                { value: 'devin', label: 'Devin SWE-2（ツールなし）' },
-                { value: 'codex', label: 'Codex（全権限で作業）' },
-              ]}
-              onSelect={(v: string) => pickMode($, v)}
+          <Box flexDirection="row" gap={1}>
+            <Button
+              key="mode-devin"
+              label="Devin（相談）"
+              variant={current === 'devin' ? 'primary' : 'secondary'}
+              dimColor={current !== 'devin'}
+              onPress={() => pickMode($, 'devin')}
             />
-          ) : (
-            <Text dimColor>送り先: {LABEL[current]}（/devin /codex で切替）</Text>
-          )}
+            <Button
+              key="mode-codex"
+              label="Codex（作業）"
+              variant={current === 'codex' ? 'primary' : 'secondary'}
+              dimColor={current !== 'codex'}
+              onPress={() => pickMode($, 'codex')}
+            />
+          </Box>
+          {current === 'codex' ? <Text dimColor>{codexNote}</Text> : null}
           {Select ? (
             <Select
               key="effort"

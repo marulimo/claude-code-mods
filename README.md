@@ -16,14 +16,13 @@ Mod の設定項目は各 `mods/<mod>/.claude-plugin/plugin.json` の `userConfi
 
 ## ask-codex
 
-Devin や Codex に依頼を送り、返答をパネルに表示します。返答のコピーや Claude の入力欄への挿入もできます。
+右側のパネルから、Devin SWE-2 への相談と Codex への作業依頼を送ります。送った分は Devin と Codex の利用枠で動き、Claude の使用量は使いません。単独のリポジトリ [marulimo/ask-codex](https://github.com/marulimo/ask-codex) でも同じ版を公開しています。
 
-- コマンド: `/devin <質問>`、`/codex <依頼>`、`/codex-panel`。引数なしの `/devin`、`/codex` でもパネルを開けます。
-- 必要なもの: 使用する送り先の Codex CLI / Devin CLI とログイン済みのアカウントです。Devin 用フォルダーは事前に用意し、Devin CLI で信頼してください。
-- 設定: `codexPath`（`codex`）、`model`（`gpt-6.1-sol`）、`codexEffort`（`high`）、`devinPath`（`devin`）、`devinDir`（空）、`devinEffort`（`high`）です。
-- `devinDir` が空なら、環境変数 `USERPROFILE`、なければ `HOME` の下の `devin-ask` を使います。
-- 注意: `/codex` は承認とサンドボックスを無効にし、確認なしで現在の作業フォルダーを書き換えます。`/devin` はプロンプトでツール利用を禁止する相談用です。両 CLI の利用枠を使います。
-- エラーログは `TEMP`、なければ `TMPDIR` の下の `ask-codex-errors.log` に書きます。両方とも未設定ならファイルには書きません。
+- 使い方: パネル上部の「Devin（相談）」「Codex（作業）」で送り先を選び、入力欄に書いて Enter。「推論」で強さを選びます（送り先ごとに覚えます）。コマンドでも送れます: `/devin <質問>`、`/codex <依頼>`、`/codex-panel`。
+- 必要なもの: 使う送り先の CLI です（片方だけでも動きます）。Codex CLI はログイン済み、Devin CLI はログイン済みで SWE-2 が使えること。
+- 設定: Codex の権限（`workspace-write`）、Codex の推論強度（`high`）、Codex のモデル（空なら CLI の既定）、codex の場所（空なら自動で探す）、Devin の強さ（`high`）、devin の場所（空なら自動で探す）、Devin を動かすフォルダー（空なら `~/.ask-codex/devin-chat`）です。
+- 注意: Codex の権限を `danger-full-access` にすると、確認もサンドボックスもなしで作業フォルダーを書き換えます。Devin は中身の空な専用フォルダーで、その1回だけフォルダーの信頼確認を省いて動かします。失敗の記録は `~/.ask-codex/errors.log` に残ります。
+- 詳しくは [mods/ask-codex/README.md](mods/ask-codex/README.md) を参照してください。
 
 ## ai-usage-hub
 
@@ -90,12 +89,15 @@ python <routerScript> --backend jev
 
 ## side-chat
 
-Claude が考えている間、Dots 役（ChatGPT）と GrokBot 役（Grok）がパネルで交互に雑談します。依頼文の冒頭200文字と使用ツール名、直近の雑談を送り先に渡します。
+Claude が考えている間、Dots 役（ChatGPT）と GrokBot 役（Grok）がパネルで交互に、いまの会話の話題について雑談します。直近の会話（最大8発言・1発言300字・合計1500字）、このターンの使用ツール名、直近の雑談を送り先に渡します。
+
+- 送らないもの: ツールの出力とコードブロックは渡しません。設定 `privateWords` の語句を含む発言は丸ごと省き、APIキー・トークン・メールアドレス・32文字以上の英数字列は伏せ字にします。
 
 - コマンド: `/side-chat`、`/side-chat off`、`/side-chat on` です。
 - 必要なもの: ログイン済みの Codex CLI と、`hermes_cli` を読み込める Python / Hermes Agent です。Grok は `xai-oauth` 経由で X Premium の枠を使います。
-- 設定: `codexPath`（`codex`）、`gptModel`（`gpt-6.1-sol`）、`python`（`py`）、`pythonVersion`（`-3.13`）、`grokModel`（`grok-4.3`）、`startDelaySec`（20秒）、`gapSec`（20秒）、`maxLines`（6）、`privateFolders`（空）です。Python ランチャーに版指定が不要なら `pythonVersion` を空にします。
+- 設定: `codexPath`（`codex`）、`gptModel`（`gpt-6.1-sol`）、`python`（`py`）、`pythonVersion`（`-3.13`）、`grokModel`（`grok-4.3`）、`startDelaySec`（20秒）、`gapSec`（20秒）、`maxLines`（6）、`privateFolders`（空）、`privateWords`（空）です。Python ランチャーに版指定が不要なら `pythonVersion` を空にします。
 - `privateFolders` は除外する絶対パスをカンマ区切りで指定します。設定したフォルダーとその配下では送りません。既定では除外しません。
+- `privateWords` は雑談の材料に渡さない語句をカンマ区切りで指定します。大文字小文字を区別せず部分一致で判定します。既定では除外しません。
 - 注意: 雑談ごとに Codex / Grok の利用枠を使います。不要な場合は `off` で止めてください。
 
 ## tag-feed

@@ -20,6 +20,7 @@ export type Config = {
   startDelayMs: number
   gapMs: number
   maxLines: number
+  privateWords: string[]
 }
 
 const NAME: Record<Speaker, string> = { dots: 'Dots', grok: 'GrokBot' }
@@ -33,6 +34,48 @@ export function isBlockedPath(cwd: string, folders: string[]): boolean {
   const normalize = (path: string) => path.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
   const path = normalize(cwd)
   return folders.some(folder => path === normalize(folder) || path.startsWith(`${normalize(folder)}/`))
+}
+
+const SECRET_RES = [
+  /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{10,}/g,
+  /\b(?:ghp|gho|ghs|github_pat|xox[abprs]|AIza|ya29)[A-Za-z0-9_.-]{10,}/g,
+  /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
+  /[A-Za-z0-9+/_=-]{32,}/g,
+]
+
+// 設定した語句を含む発言は丸ごと送らない
+export function sanitize(text: string, privateWords: readonly string[] = []): string | undefined {
+  let s = text
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    .replace(/<[^>\n]{1,80}>/g, '')
+    .replace(/```[\s\S]*?```/g, '（コード省略）')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!s) return undefined
+  const lower = s.toLowerCase()
+  if (privateWords.some(word => lower.includes(word.toLowerCase()))) return '（除外した話題なので省略）'
+  for (const re of SECRET_RES) s = s.replace(re, '［伏せ字］')
+  return s
+}
+
+const RECENT_MAX = 1500
+const MESSAGE_MAX = 300
+
+// 直近の会話を、新しい方から上限まで拾って古い順に並べる
+export function recentTalk(messages: readonly { role: string; text: string }[], privateWords: readonly string[] = []): string {
+  const out: string[] = []
+  let used = 0
+  for (let i = messages.length - 1; i >= 0 && out.length < 8; i--) {
+    const m = messages[i]!
+    const s = sanitize(m.text, privateWords)
+    if (!s) continue
+    const cut = s.length > MESSAGE_MAX ? `${s.slice(0, MESSAGE_MAX)}…` : s
+    const line = `${m.role === 'user' ? 'ユーザー' : 'Claude'}: ${cut}`
+    if (used + line.length > RECENT_MAX && out.length) break
+    out.unshift(line)
+    used += line.length
+  }
+  return out.join('\n')
 }
 
 export function nextSpeaker(chatNow: Chat, turnLines: Line[], now: number, cfg: Config): Speaker | undefined {
@@ -53,18 +96,20 @@ const PERSONA: Record<Speaker, string> = {
     'あなたは「GrokBot」。Xをよく見ている、ちょっと茶目っ気のある相棒（Grok）。軽いツッコミや小ネタが得意。',
 }
 
-export function buildPrompt(who: Speaker, head: string, tools: string[], recent: Line[]): string {
+export function buildPrompt(who: Speaker, talk: string, tools: string[], recent: Line[]): string {
   const other = who === 'dots' ? 'GrokBot' : 'Dots'
   const log = recent.map(l => `${NAME[l.who]}: ${l.text}`).join('\n')
   return [
     'ツール禁止・ファイル読取禁止・検索禁止。考えたことだけで答える。',
     PERSONA[who],
-    `いま、ユーザーは Claude Code にプログラミング作業を頼んで、返事を待っている。あなたは右側の小窓で ${other} と雑談している。`,
-    `頼んだ内容の冒頭: 「${head || '（不明）'}」`,
-    `Claude がここまでに使った道具: ${tools.length ? tools.join('、') : 'まだなし'}`,
+    `いま、ユーザーは Claude Code と作業の話をしていて、Claude の返事を待っている。あなたは右側の小窓で ${other} と雑談している。`,
+    talk ? `ユーザーと Claude の最近の会話（抜粋）:\n${talk}` :'ユーザーと Claude の会話の中身は分からない。',
+    `Claude がこのターンで使った道具: ${tools.length ? tools.join('、') : 'まだなし'}`,
     log ? `ここまでの雑談:\n${log}` : 'まだ誰も話していない。あなたから話し始める。',
-    `次のあなたの一言を書く。40字以内、1文か2文。${other}の発言があれば受けて返してよい。`,
-    '作業の中身や結果を知っているふりはしない。説教や助言の押しつけはしない。名前の前置きや引用符は付けない。',
+    `次のあなたの一言を書く。40字以内、1文か2文。会話の話題に触れた感想や軽いツッコミにする。${other}の発言があれば受けて返してよい。`,
+    `作業をしているのは Claude で、あなたと ${other} は横で見ているだけ。自分たちが作業したように言わない。`,
+    'ここまでの雑談と同じ小ネタや言い回しを繰り返さない。雑談の流れより、ユーザーと Claude の会話の話題を優先する。',
+    '会話に書かれていないことは決めつけない。説教や助言の押しつけはしない。名前の前置きや引用符は付けない。',
   ].join('\n')
 }
 
@@ -117,7 +162,16 @@ export async function tick($: EngineInterface, cfg: Config) {
   const turnId = c.turnId!
   await update($, chat, x => ({ ...x, busy: who, error: undefined }))
   try {
-    const text = cleanReply(await say($, cfg, who, buildPrompt(who, promptHead, toolsSeen, all.slice(-6))))
+    let talk = ''
+    try {
+      talk = recentTalk(await $.session.messages(), cfg.privateWords)
+    } catch {
+      // 履歴が読めないときは依頼文の冒頭だけで話す
+    }
+    if (!talk && promptHead) talk = recentTalk([{ role: 'user', text: promptHead }], cfg.privateWords)
+    // 前のターンの雑談は2発言だけ持ち込む。多いと同じ小ネタを引きずる
+    const recent = [...all.filter(l => l.turnId !== turnId).slice(-2), ...turnLines].slice(-6)
+    const text = cleanReply(await say($, cfg, who, buildPrompt(who, talk, toolsSeen, recent)))
     if (text) {
       const at = await $.clock.now()
       await update($, lines, list => [...list, { id: `${turnId}-${at}-${who}`, who, text, at, turnId }].slice(-MAX_KEEP))
@@ -155,6 +209,7 @@ export const register: Register = (on, options) => {
     startDelayMs: Math.max(5, Number(options.startDelaySec) || 20) * 1000,
     gapMs: Math.max(5, Number(options.gapSec) || 20) * 1000,
     maxLines: Math.max(1, Number(options.maxLines) || 6),
+    privateWords: String(options.privateWords || '').split(',').map(s => s.trim()).filter(Boolean),
   }
 
   const privateFolders = String(options.privateFolders || '').split(',').map(s => s.trim()).filter(Boolean)

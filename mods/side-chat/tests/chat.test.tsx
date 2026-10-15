@@ -99,3 +99,31 @@ test('/side-chat off で止まり、on で再開する', async ($, on) => {
   await walk(clock, 6_000)
   expect(runs.length).toBe(1)
 })
+
+test('最近の会話を材料に渡し、設定した語句と秘密らしい文字列は送らない', { options: { privateWords: '社外秘, secret-project' } }, async ($, on) => {
+  const clock = mock.clock(on, { now: 1_000 })
+  const runs = wire(on, '/home/demo/work', [])
+  on('session.messages', () =>
+    ({
+      value: [
+        { role: 'user', text: '社外秘の見積もり表を直して', toolUses: [] },
+        { role: 'assistant', text: 'キーは sk-abcdefghijklmnop1234 と someone@example.com を使います', toolUses: [] },
+        { role: 'user', text: '<system-reminder>内部メモ</system-reminder>設定画面の文言を整えて', toolUses: [] },
+        { role: 'assistant', text: '文言を3か所直し、テストは全部通りました', toolUses: [] },
+      ],
+    }) as never,
+  )
+  await $.session.start({ cwd: '/home/demo/work' } as never)
+  await $.turn.start({ text: '雑談して', turnId: 't1' })
+  await walk(clock, 24_000)
+  expect(runs.length).toBe(1)
+  const sent = runs[0]!.stdin ?? ''
+  expect(sent).toContain('ユーザー: 設定画面の文言を整えて')
+  expect(sent).toContain('テストは全部通りました')
+  expect(sent).toContain('（除外した話題なので省略）')
+  expect(sent).toContain('横で見ているだけ')
+  expect(sent).not.toContain('見積もり表')
+  expect(sent).not.toContain('sk-abcdefghijklmnop1234')
+  expect(sent).not.toContain('someone@example.com')
+  expect(sent).not.toContain('内部メモ')
+})

@@ -1,48 +1,58 @@
 {
   "name": "ask-codex",
-  "version": "0.1.0",
-  "description": "/devin と /codex で Devin SWE-2 や Codex に投げ、結果を右のパネルで見る",
+  "version": "1.0.0",
+  "description": "Claude の使用量を使わずに、Devin SWE-2 への相談や Codex への作業依頼を右のパネルから送れる Claude Code の Mod",
+  "author": {
+    "name": "marulimo"
+  },
+  "homepage": "https://github.com/marulimo/ask-codex",
+  "repository": "https://github.com/marulimo/ask-codex",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "devin",
+    "pane",
+    "mod"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
-    "codexPath": {
+    "codexSandbox": {
       "type": "string",
-      "title": "codex.exe のパス",
-      "description": "Codex CLI 本体。.cmd ではなく exe を指す",
-      "default": "codex"
-    },
-    "model": {
-      "type": "string",
-      "title": "モデル",
-      "description": "codex exec に渡すモデル",
-      "default": "gpt-6.1-sol"
+      "title": "Codex の権限",
+      "description": "workspace-write は作業フォルダーの中だけ書き換える。danger-full-access は確認もサンドボックスもなしで動かす",
+      "default": "workspace-write",
+      "options": [
+        "workspace-write",
+        "danger-full-access"
+      ]
     },
     "codexEffort": {
       "type": "string",
-      "title": "/codex の推論強度",
+      "title": "Codex の推論強度（既定）",
+      "description": "model_reasoning_effort の既定値。パネルで送り先ごとに変えられる",
       "default": "high",
       "options": [
         "low",
         "medium",
         "high",
         "xhigh"
-      ],
-      "description": "/codex で送るときの model_reasoning_effort"
+      ]
     },
-    "devinPath": {
+    "model": {
       "type": "string",
-      "title": "devin.exe のパス",
-      "description": "Devin CLI 本体",
-      "default": "devin"
+      "title": "Codex のモデル",
+      "description": "空なら Codex CLI の既定モデル",
+      "default": ""
     },
-    "devinDir": {
+    "codexPath": {
       "type": "string",
-      "title": "Devin を動かすフォルダー",
-      "description": "相談専用の空フォルダー。Devin CLI で一度信頼しておく",
+      "title": "codex の場所",
+      "description": "空なら自動で探す（Windows は npm の codex.cmd の隣にある codex.exe）",
       "default": ""
     },
     "devinEffort": {
       "type": "string",
-      "title": "/devin の既定の強さ",
+      "title": "Devin の強さ（既定）",
       "description": "SWE-2 の medium / high / max",
       "default": "high",
       "options": [
@@ -50,9 +60,18 @@
         "high",
         "max"
       ]
+    },
+    "devinPath": {
+      "type": "string",
+      "title": "devin の場所",
+      "description": "空なら自動で探す（Windows は %LOCALAPPDATA%/devin/cli/bin/devin.exe）",
+      "default": ""
+    },
+    "devinDir": {
+      "type": "string",
+      "title": "Devin を動かすフォルダー",
+      "description": "空なら ~/.ask-codex/devin-chat（中身の空な専用フォルダー）",
+      "default": ""
     }
-  },
-  "author": {
-    "name": "marulimo"
   }
 }
