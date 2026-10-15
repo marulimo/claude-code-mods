@@ -1,6 +1,6 @@
 {
   "name": "x-post",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "/x と /x-reply で登録ハッシュタグ入りのXの投稿画面を開く。右ペインに登録タグとメンションを出す。推論中だけ投稿できるモードつき",
   "types": "./types/index.d.ts",
   "author": {

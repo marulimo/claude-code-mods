@@ -1,6 +1,6 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-import { composeText, intentUrl, normalizeAccount, normalizeTag, parseMentions, statusId } from './register'
+import { composeText, intentUrl, normalizeAccount, normalizeTag, parseMentions, postWeight, statusId } from './register'
 
 const PANE_PROPS = { title: 'X', isFocused: false, bodyColumns: 40, placement: 'dock', scroll: { offset: 0, bodyRows: 20 }, view: {} } as const
 
@@ -10,7 +10,7 @@ test('タグとアカウントの正規化', async () => {
   expect(normalizeTag(' AI ')).toBe('AI')
   expect(normalizeTag('#')).toBe(undefined)
   expect(normalizeTag('a#b')).toBe(undefined)
-  expect(normalizeAccount('@demo_user')).toBe('demo_user')
+  expect(normalizeAccount('@PiClaudeCode')).toBe('PiClaudeCode')
   expect(normalizeAccount('あいう')).toBe(undefined)
 })
 
@@ -78,41 +78,18 @@ test('ペインにモードとタグが出て、ボタンでモードが切り�
   mock.store(on)
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ plugin: 'x-post', surface, component: 'Pane', requestId: 'x-post', props: PANE_PROPS })
-    expect(await ui.find({ type: 'Text', text: /投稿: いつでも可/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /いつでも投稿できます/ })).toBeDefined()
     await ui.press({ key: 'mode' })
-    expect(await ui.find({ type: 'Text', text: /投稿: 不可/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /待機中: 投稿できません/ })).toBeDefined()
     await ui.press({ key: 'mode' })
-    expect(await ui.find({ type: 'Text', text: /投稿: いつでも可/ })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: /いつでも投稿できます/ })).toBeDefined()
     expect(await ui.find({ key: 'refresh' })).toBeDefined()
   }
 })
 
-test('アカウント未設定のメンション欄は設定方法を示し、外部検索しない', async ($, on) => {
-  mock.store(on)
-  on('session.start', (_, e) => ({ cwd: e.cwd }))
-  on('command.register', () => ({ value: undefined }) as never)
-  on('ui.open', () => ({ value: { isPlaced: true } }))
-  let calls = 0
-  on('process.run', () => {
-    calls++
-    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
-  })
-  await $.session.start({ cwd: '/home/demo/project', surface: 'terminal', isInteractive: true })
-  const panes = []
-  for (const surface of ['terminal', 'desktop'] as const) {
-    const ui = await $.ui.mount({ plugin: 'x-post', surface, component: 'Pane', requestId: 'x-post', props: PANE_PROPS })
-    panes.push(ui)
-    expect(await ui.find({ type: 'Text', text: 'メンション（/x-account @名前 で設定）' })).toBeDefined()
-    await ui.press({ key: 'refresh' })
-    expect(calls).toBe(0)
-    expect(await ui.find({ type: 'Text', text: /先に \/x-account @名前/ })).toBeDefined()
-  }
-  await $.command.run({ command: 'x-account', args: '@demo' } as never)
-  expect(await panes[0]!.find({ type: 'Text', text: 'メンション（@demo）' })).toBeDefined()
-})
-
 test('ペインの投稿欄で Enter すると投稿画面を開き、返信先が不正なら開かない', async ($, on) => {
   mock.store(on)
+  mock.env(on, { OS: 'Windows_NT' })
   const opened: string[] = []
   on('process.run', async (_$, e) => {
     opened.push(String(e.argv[2]))
@@ -125,6 +102,7 @@ test('ペインの投稿欄で Enter すると投稿画面を開き、返信先�
 
     await ui.input({ key: 'replyTo', text: 'https://x.com/foo/status/77', kind: 'change' })
     await ui.input({ key: 'body', text: 'ペインから', kind: 'change' })
+    expect(await ui.find({ type: 'Text', text: 'プレビュー' })).toBeDefined()
     await ui.input({ key: 'body', text: 'ペインから' })
     expect(opened).toEqual([intentUrl('ペインから', '77')])
     expect(await ui.find({ type: 'Text', text: /投稿画面を開きました/ })).toBeDefined()
@@ -134,5 +112,48 @@ test('ペインの投稿欄で Enter すると投稿画面を開き、返信先�
     expect(opened.length).toBe(1)
     expect(await ui.find({ type: 'Text', text: /返信先がポストのURL/ })).toBeDefined()
     await ui.input({ key: 'replyTo', text: '', kind: 'change' })
+  }
+})
+
+test('文字数はXの数え方の目安で、日本語は2、URLは23', async () => {
+  expect(postWeight('abc')).toBe(3)
+  expect(postWeight('あいう')).toBe(6)
+  expect(postWeight('見て https://example.com/very/long/path')).toBe(4 + 1 + 23)
+  expect(normalizeTag('a'.repeat(51))).toBe(undefined)
+})
+
+test('長すぎる本文は投稿画面を開かない。タグは10個まで', async ($, on) => {
+  const run = (command: string, args: string) =>
+    $.command.run({
+      command,
+      args,
+      origin: { kind: 'plugin', name: 'test' },
+      presentation: { isFullscreen: false, columns: 80 },
+    })
+  mock.store(on)
+  const opened: string[] = []
+  on('process.run', async (_$, e) => {
+    opened.push(e.argv.join(' '))
+    return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  expect((await run('x', 'あ'.repeat(141))).text).toContain('長すぎます')
+  expect(opened.filter(a => a.includes('intent/post')).length).toBe(0)
+  expect((await run('x', 'あ'.repeat(140))).text).toContain('intent/post')
+  expect((await run('x-tag', 'add a b c d e f g h i j')).text).toContain('登録しました')
+  expect((await run('x-tag', 'add k')).text).toContain('10 個まで')
+})
+
+test('ペインのタグ欄で追加し、タグを押すと消える', async ($, on) => {
+  mock.store(on)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ plugin: 'x-post', surface, component: 'Pane', requestId: 'x-post', props: PANE_PROPS })
+    expect(await ui.find({ type: 'Text', text: /なし/ })).toBeDefined()
+    await ui.input({ key: 'tagAdd', text: '#朝活 AI' })
+    expect(await ui.find({ key: 'tag-朝活' })).toBeDefined()
+    expect(await ui.find({ key: 'tag-AI' })).toBeDefined()
+    await ui.press({ key: 'tag-AI' })
+    expect(await ui.find({ key: 'tag-AI' })).toBe(undefined)
+    await ui.press({ key: 'tag-朝活' })
+    expect(await ui.find({ key: 'tag-朝活' })).toBe(undefined)
   }
 })

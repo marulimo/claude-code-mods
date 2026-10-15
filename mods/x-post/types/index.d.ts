@@ -18,6 +18,8 @@ declare module 'claude-code' {
       draft: string
       replyTo: string
       lastResult: string
+      tagDraft: string
+      tagNote: string
     }
   }
 }
