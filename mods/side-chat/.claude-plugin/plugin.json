@@ -1,0 +1,65 @@
+{
+  "name": "side-chat",
+  "version": "0.1.0",
+  "description": "Claude の推論待ちのあいだ、Dots役(ChatGPT)と GrokBot役(Grok)が右のパネルで雑談する",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "codexPath": {
+      "type": "string",
+      "title": "codex.exe のパス",
+      "description": "Dots役を話させる Codex CLI 本体。.cmd ではなく exe を指す",
+      "default": "codex"
+    },
+    "gptModel": {
+      "type": "string",
+      "title": "Dots役のモデル",
+      "default": "gpt-6.1-sol",
+      "description": "codex exec に渡すモデル。Codex の枠を使う"
+    },
+    "python": {
+      "type": "string",
+      "title": "Python ランチャー",
+      "description": "hermes_cli が入っている Python を起動するコマンド",
+      "default": "py"
+    },
+    "pythonVersion": {
+      "type": "string",
+      "title": "Python の版",
+      "description": "py ランチャーに渡す版指定。空なら付けない",
+      "default": "-3.13"
+    },
+    "grokModel": {
+      "type": "string",
+      "title": "GrokBot役のモデル",
+      "description": "hermes -m に渡すモデル。X Premium の枠を使う",
+      "default": "grok-4.3"
+    },
+    "startDelaySec": {
+      "type": "number",
+      "title": "話し始めるまでの待ち(秒)",
+      "description": "Claude が考え始めてからこの秒数たったら雑談を始める",
+      "default": 20
+    },
+    "gapSec": {
+      "type": "number",
+      "title": "発言の間隔(秒)",
+      "default": 20,
+      "description": "ひとつの発言から次の発言までの最短間隔"
+    },
+    "maxLines": {
+      "type": "number",
+      "title": "1ターンの最大発言数",
+      "description": "長いターンで枠を食いすぎないための上限",
+      "default": 6
+    },
+    "privateFolders": {
+      "type": "string",
+      "title": "外部送信しないフォルダー",
+      "default": "",
+      "description": "カンマ区切りで指定します。フォルダーは絶対パスです"
+    }
+  },
+  "author": {
+    "name": "marulimo"
+  }
+}

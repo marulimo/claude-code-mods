@@ -1,0 +1,9 @@
+{
+  "name": "ai-usage-hub",
+  "version": "0.1.0",
+  "description": "Claude・Codex・Grok・Grok Bot の使用率とリセット時刻を表示します",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "marulimo"
+  }
+}

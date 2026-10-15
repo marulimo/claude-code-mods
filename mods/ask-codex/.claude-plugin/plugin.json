@@ -1,0 +1,58 @@
+{
+  "name": "ask-codex",
+  "version": "0.1.0",
+  "description": "/devin と /codex で Devin SWE-2 や Codex に投げ、結果を右のパネルで見る",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "codexPath": {
+      "type": "string",
+      "title": "codex.exe のパス",
+      "description": "Codex CLI 本体。.cmd ではなく exe を指す",
+      "default": "codex"
+    },
+    "model": {
+      "type": "string",
+      "title": "モデル",
+      "description": "codex exec に渡すモデル",
+      "default": "gpt-6.1-sol"
+    },
+    "codexEffort": {
+      "type": "string",
+      "title": "/codex の推論強度",
+      "default": "high",
+      "options": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "description": "/codex で送るときの model_reasoning_effort"
+    },
+    "devinPath": {
+      "type": "string",
+      "title": "devin.exe のパス",
+      "description": "Devin CLI 本体",
+      "default": "devin"
+    },
+    "devinDir": {
+      "type": "string",
+      "title": "Devin を動かすフォルダー",
+      "description": "相談専用の空フォルダー。Devin CLI で一度信頼しておく",
+      "default": ""
+    },
+    "devinEffort": {
+      "type": "string",
+      "title": "/devin の既定の強さ",
+      "description": "SWE-2 の medium / high / max",
+      "default": "high",
+      "options": [
+        "medium",
+        "high",
+        "max"
+      ]
+    }
+  },
+  "author": {
+    "name": "marulimo"
+  }
+}

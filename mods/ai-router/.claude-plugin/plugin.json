@@ -1,0 +1,44 @@
+{
+  "name": "ai-router",
+  "version": "0.1.0",
+  "description": "送信を待たせず、依頼に適したAIをトーストとステータス行に表示します。",
+  "userConfig": {
+    "backend": {
+      "type": "string",
+      "title": "判定バックエンド",
+      "description": "判定API",
+      "options": [
+        "jev",
+        "decisions"
+      ],
+      "default": "jev"
+    },
+    "pythonPath": {
+      "type": "string",
+      "title": "Python の実行コマンド",
+      "description": "判定スクリプトを実行する Python",
+      "default": "python"
+    },
+    "routerScript": {
+      "type": "string",
+      "title": "判定スクリプトのパス",
+      "description": "空の場合は判定しません",
+      "default": ""
+    },
+    "privateFolders": {
+      "type": "string",
+      "title": "外部送信しないフォルダー",
+      "default": "",
+      "description": "カンマ区切りで指定します。フォルダーは絶対パスです"
+    },
+    "privateWords": {
+      "type": "string",
+      "title": "外部送信しない語句",
+      "default": "",
+      "description": "カンマ区切りで指定します。フォルダーは絶対パスです"
+    }
+  },
+  "author": {
+    "name": "marulimo"
+  }
+}

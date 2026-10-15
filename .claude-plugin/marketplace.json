@@ -1,0 +1,33 @@
+{
+  "name": "claude-code-mods",
+  "owner": {
+    "name": "marulimo"
+  },
+  "plugins": [
+    {
+      "name": "ask-codex",
+      "source": "./mods/ask-codex"
+    },
+    {
+      "name": "ai-usage-hub",
+      "source": "./mods/ai-usage-hub"
+    },
+    {
+      "name": "ai-router",
+      "source": "./mods/ai-router"
+    },
+    {
+      "name": "side-chat",
+      "source": "./mods/side-chat"
+    },
+    {
+      "name": "tag-feed",
+      "source": "./mods/tag-feed"
+    },
+    {
+      "name": "x-post",
+      "source": "./mods/x-post"
+    }
+  ],
+  "description": "Claude Code の Mod 6本（Codex/Devin への依頼、AI 使用率、X 投稿、AI の振り分け、ハッシュタグの流し見、待ち時間の雑談）"
+}

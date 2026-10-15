@@ -1,0 +1,35 @@
+{
+  "name": "tag-feed",
+  "version": "0.1.0",
+  "description": "Xのハッシュタグの新着を Grok(Hermes) で拾い、パネルに流し続ける。X API は使わない",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "python": {
+      "type": "string",
+      "title": "Python ランチャー",
+      "description": "hermes_cli が入っている Python を起動するコマンド",
+      "default": "py"
+    },
+    "pythonVersion": {
+      "type": "string",
+      "title": "Python の版",
+      "description": "py ランチャーに渡す版指定。空なら付けない",
+      "default": "-3.13"
+    },
+    "model": {
+      "type": "string",
+      "title": "Grok のモデル",
+      "description": "hermes -m に渡すモデル",
+      "default": "grok-4.3"
+    },
+    "intervalMinutes": {
+      "type": "number",
+      "title": "取得間隔(分)",
+      "description": "Grok の枠(X Premium)を食うので短くしすぎない",
+      "default": 10
+    }
+  },
+  "author": {
+    "name": "marulimo"
+  }
+}
