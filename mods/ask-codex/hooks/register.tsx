@@ -279,10 +279,8 @@ export const register: Register = (on, options) => {
     // 1つ失敗しても残りとセッション開始は続ける。理由はファイルに残す
     await resolvePaths($, cfg).catch(() => undefined)
     await registerCommands($)
-    const started = await next(e)
-    // 起動時に開いておく。ドックできる画面では右のサイドバーになる
-    void openPane($).catch(err => noteError($, 'ui.open', err))
-    return started
+    // 起動時には開かない。/codex-panel か /devin・/codex で開く
+    return next(e)
   }).catch(($, e, next) => next(e))
 
   for (const m of ['devin', 'codex'] as const) {

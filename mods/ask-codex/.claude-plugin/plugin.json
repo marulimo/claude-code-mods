@@ -1,6 +1,6 @@
 {
   "name": "ask-codex",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Claude の使用量を使わずに、Devin SWE-2 への相談や Codex への作業依頼を右のパネルから送れる Claude Code の Mod",
   "author": {
     "name": "marulimo"
