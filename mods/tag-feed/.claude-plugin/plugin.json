@@ -1,9 +1,15 @@
 {
   "name": "tag-feed",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Xのハッシュタグの新着を Grok(Hermes) で拾い、パネルに流し続ける。X API は使わない",
   "types": "./types/index.d.ts",
   "userConfig": {
+    "tags": {
+      "type": "string",
+      "title": "既定のハッシュタグ",
+      "description": "/tag-feed で指定していないときに流すタグ。空白区切りで複数",
+      "default": "ClaudeModsHack"
+    },
     "python": {
       "type": "string",
       "title": "Python ランチャー",
@@ -25,8 +31,8 @@
     "intervalMinutes": {
       "type": "number",
       "title": "取得間隔(分)",
-      "description": "Grok の枠(X Premium)を食うので短くしすぎない",
-      "default": 10
+      "description": "Grok の枠(X Premium)を食うので短くしすぎない。30分未満は30分に切り上げ",
+      "default": 30
     }
   },
   "author": {

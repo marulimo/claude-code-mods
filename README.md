@@ -105,9 +105,10 @@ Claude が考えている間、Dots 役（ChatGPT）と GrokBot 役（Grok）が
 X のハッシュタグに合う投稿を探し、パネルに新着を表示します。タグを登録すると定期取得します。
 
 - コマンド: `/tag-feed #タグ #別のタグ`、`/tag-feed` です。パネルには即時取得と停止・再開のボタンがあります。
+- 起動時には取得しません。`/tag-feed` を実行したセッションで定期取得が始まります。Claude Code を複数開いていても、取得するのは1つのセッションだけです（`~/.claude/tag-feed/shared.json` で調整します）。
 - 必要なもの: `hermes_cli` を読み込める Python / Hermes Agent と、Grok の `xai-oauth` ログインです。
-- 設定: `python`（`py`）、`pythonVersion`（`-3.13`）、`model`（`grok-4.3`）、`intervalMinutes`（10分、最短2分）です。
-- 注意: X API は使いません。Grok の検索で投稿 URL を探し、X の埋め込み用の公開エンドポイントから本文を取得します。取得ごとに Grok の X Premium 枠を使います。検索結果や公開エンドポイントの状況により取得できない投稿もあります。
+- 設定: `tags`（`ClaudeModsHack`）、`python`（`py`）、`pythonVersion`（`-3.13`）、`model`（`grok-4.3`）、`intervalMinutes`（30分、最短30分）です。
+- 注意: X API は使いません。Grok の検索で投稿 URL を探し、X の埋め込み用の公開エンドポイントから本文を取得します。取得ごとに Grok の X Premium 枠を使います。枠切れ（HTTP 402）を受けると自動取得を止め、パネルに「Grok枠切れで停止中」と表示します。6時間後に1回だけ試し、それも失敗したらパネルの「再開」を押すまで止まります。検索結果や公開エンドポイントの状況により取得できない投稿もあります。
 
 ## x-post
 

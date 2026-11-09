@@ -1,3 +1,10 @@
+export type Media = {
+  kind: 'photo' | 'video' | 'gif'
+  thumb: string
+  w: number
+  h: number
+}
+
 export type Post = {
   id: string
   handle: string
@@ -5,6 +12,7 @@ export type Post = {
   text: string
   time: string
   url: string
+  media?: Media[]
 }
 
 export type Feed = {
@@ -15,10 +23,13 @@ export type Feed = {
   lastAdded?: number
   lastDropped?: number
   error?: string
+  blockedAt?: number
+  blockedReason?: string
+  probedAt?: number
 }
 
 declare module 'claude-code' {
   interface PluginState {
-    'tag-feed': { posts: Post[]; feed: Feed }
+    'tag-feed': { posts: Post[]; feed: Feed; thumbs: Record<string, string> }
   }
 }
